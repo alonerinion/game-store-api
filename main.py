@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from typing import List
-from models.schemas import Game, User, UserGame
+from models.schemas import Game, User, LibraryWishlist
 from database import get_all_from_csv, save_to_csv, update_csv_file
 
 app = FastAPI(title="Game Store API", version="1.0")
@@ -22,7 +22,6 @@ def create_game(game: Game):
 
 @app.post("/games/bulk/", response_model=List[Game])
 def create_multiple_games(games_list: List[Game]):
-    """Permite registrar múltiples videojuegos en una sola petición."""
     existing_games = get_all_from_csv(GAMES_CSV)
     existing_ids = {g["id"] for g in existing_games if g and "id" in g}
 
@@ -69,6 +68,22 @@ def filter_games_by_category(category: str):
     return results
 
 
+@app.put("/games/{game_id}", response_model=Game)
+def update_game(game_id: str, updated_game: Game):
+    games = get_all_from_csv(GAMES_CSV)
+    found = False
+    for i, g in enumerate(games):
+        if g and "id" in g and g["id"] == game_id:
+            games[i] = updated_game.model_dump()
+            games[i]["id"] = game_id
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail="Videojuego no encontrado para actualizar.")
+    update_csv_file(GAMES_CSV, games, ["id", "title", "category", "price", "release_date", "is_active"])
+    return updated_game
+
+
 @app.delete("/games/{game_id}")
 def delete_game(game_id: str):
     games = get_all_from_csv(GAMES_CSV)
@@ -82,8 +97,7 @@ def delete_game(game_id: str):
     if not game_found:
         raise HTTPException(status_code=404, detail="Videojuego no encontrado para eliminar.")
 
-    fieldnames = ["id", "title", "category", "price", "release_date", "is_active"]
-    update_csv_file(GAMES_CSV, games, fieldnames)
+    update_csv_file(GAMES_CSV, games, ["id", "title", "category", "price", "release_date", "is_active"])
     return {"message": "Videojuego marcado como inactivo exitosamente (histórico conservado)."}
 
 
@@ -117,6 +131,22 @@ def get_user_by_id(user_id: str):
     raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
 
+@app.put("/users/{user_id}", response_model=User)
+def update_user(user_id: str, updated_user: User):
+    users = get_all_from_csv(USERS_CSV)
+    found = False
+    for i, u in enumerate(users):
+        if u and "id" in u and u["id"] == user_id:
+            users[i] = updated_user.model_dump()
+            users[i]["id"] = user_id
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado para actualizar.")
+    update_csv_file(USERS_CSV, users, ["id", "username", "email", "is_active"])
+    return updated_user
+
+
 @app.delete("/users/{user_id}")
 def delete_user(user_id: str):
     users = get_all_from_csv(USERS_CSV)
@@ -134,47 +164,47 @@ def delete_user(user_id: str):
     return {"message": "Usuario marcado como inactivo (histórico conservado)."}
 
 
-# ==================== MÓDULO DE BIBLIOTECA / DESEADOS (USER_GAMES) ====================
-USER_GAMES_CSV = "user_games.csv"
+# ==================== MÓDULO DE BIBLIOTECA / DESEADOS (LIBRARY_WISHLIST) ====================
+LIBRARY_WISHLIST_CSV = "library_wishlist.csv"
 
 
-@app.post("/user-games/", response_model=UserGame)
-def create_user_game(user_game: UserGame):
-    user_games = get_all_from_csv(USER_GAMES_CSV)
-    for ug in user_games:
-        if ug and "id" in ug and ug["id"] == user_game.id:
-            raise HTTPException(status_code=400, detail="El ID de la relación ya existe.")
+@app.post("/library-wishlist/", response_model=LibraryWishlist)
+def create_library_wishlist(item: LibraryWishlist):
+    items = get_all_from_csv(LIBRARY_WISHLIST_CSV)
+    for it in items:
+        if it and "id" in it and it["id"] == item.id:
+            raise HTTPException(status_code=400, detail="El ID del registro ya existe.")
 
-    save_to_csv(USER_GAMES_CSV, user_game.model_dump())
-    return user_game
-
-
-@app.get("/user-games/", response_model=List[UserGame])
-def get_user_games():
-    user_games = get_all_from_csv(USER_GAMES_CSV)
-    return [ug for ug in user_games if ug and (ug.get("is_active") == "True" or ug.get("is_active") is True)]
+    save_to_csv(LIBRARY_WISHLIST_CSV, item.model_dump())
+    return item
 
 
-@app.get("/user-games/user/{user_id}", response_model=List[UserGame])
-def get_games_by_user(user_id: str):
-    user_games = get_all_from_csv(USER_GAMES_CSV)
-    results = [ug for ug in user_games if ug and "user_id" in ug and ug["user_id"] == user_id and (
-                ug.get("is_active") == "True" or ug.get("is_active") is True)]
+@app.get("/library-wishlist/", response_model=List[LibraryWishlist])
+def get_library_wishlists():
+    items = get_all_from_csv(LIBRARY_WISHLIST_CSV)
+    return [it for it in items if it and (it.get("is_active") == "True" or it.get("is_active") is True)]
+
+
+@app.get("/library-wishlist/user/{user_id}", response_model=List[LibraryWishlist])
+def get_library_wishlist_by_user(user_id: str):
+    items = get_all_from_csv(LIBRARY_WISHLIST_CSV)
+    results = [it for it in items if it and "user_id" in it and it["user_id"] == user_id and (
+                it.get("is_active") == "True" or it.get("is_active") is True)]
     return results
 
 
-@app.delete("/user-games/{user_game_id}")
-def delete_user_game(user_game_id: str):
-    user_games = get_all_from_csv(USER_GAMES_CSV)
+@app.delete("/library-wishlist/{item_id}")
+def delete_library_wishlist(item_id: str):
+    items = get_all_from_csv(LIBRARY_WISHLIST_CSV)
     found = False
-    for ug in user_games:
-        if ug and "id" in ug and ug["id"] == user_game_id:
-            ug["is_active"] = False
+    for it in items:
+        if it and "id" in it and it["id"] == item_id:
+            it["is_active"] = False
             found = True
             break
 
     if not found:
-        raise HTTPException(status_code=404, detail="Relación usuario-juego no encontrada.")
+        raise HTTPException(status_code=404, detail="Registro de biblioteca/deseados no encontrado.")
 
-    update_csv_file(USER_GAMES_CSV, user_games, ["id", "user_id", "game_id", "status", "is_active"])
+    update_csv_file(LIBRARY_WISHLIST_CSV, items, ["id", "user_id", "game_id", "status", "is_active"])
     return {"message": "Registro desvinculado exitosamente (histórico conservado)."}

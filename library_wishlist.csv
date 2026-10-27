@@ -1,0 +1,2 @@
+id,user_id,game_id,status,is_active
+1,1,1,activate,True
